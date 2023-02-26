@@ -6,29 +6,41 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Scanner;
+
 import projects.entity.Project;
 import projects.exception.DbException;
 import projects.service.ProjectService;
 
+@SuppressWarnings("unused")
 public class ProjectsApp {
-	private Scanner scanner = new Scanner(System.in);
-	private ProjectService projectService = new ProjectService();
-	private Project curProject;
 
-	//@formatter:off
+	Project curProject;
+	// @formatter:off
 	private List<String> operations = List.of(
 			"1) Add a project",
 			"2) List projects",
-			"3) Select a project"
+			"3) Select a project",
+			"4) Update project details",
+			"5) Delete a project"
 			
-			);
-	//@formatter:on
+	);	
+	private ProjectService projectService = new ProjectService();
+	// @formatter:on	
+
+	private Scanner scanner = new Scanner(System.in);
 
 	public static void main(String[] args) {
-		new ProjectsApp().processUserSelection();
+
+		try {
+			new ProjectsApp().processUserSelections();
+		} catch (Throwable e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+
 	}
 
-	void processUserSelection() {
+	private void processUserSelections() throws Throwable {
 		boolean done = false;
 
 		while (!done) {
@@ -36,60 +48,109 @@ public class ProjectsApp {
 				int selection = getUserSelection();
 
 				switch (selection) {
-				case -1:
+				
+				case (-1):
 					done = exitMenu();
 					break;
-
-				case 1:
+					
+				case (1):
 					createProject();
 					break;
 
-				case 2:
+				case (2):
 					listProjects();
 					break;
-
-				case 3:
+					
+				case (3):
 					selectProject();
 					break;
-
-				default:
-					System.out.println("\n" + selection + " is not a valid selection. Try again.");
+					
+				case (4):
+					updateProjectDetails();
 					break;
+					
+				case (5):
+					deleteProject();
+					break;
+					
+				default:
+					System.out.println("\n " + selection + " is not a valid selection. Try again.");
+					break;
+					
 				}
 			} catch (Exception e) {
 				System.out.println("\nError: " + e + " Try again.");
+
 			}
 		}
 	}
 
-	private void selectProject() throws NoSuchElementException, SQLException {
+	private void deleteProject() {
 		listProjects();
-		Integer projectId = getIntInput("Enter a project ID to select a project");
+		Integer projectID = getIntInput("Please enter the ID of the project you wish to delete.");
+		projectService.deleteProject(projectID);
+		System.out.println("Project ID =" + projectID + " was deleted successfully.");
+		
+		if(Objects.nonNull(curProject) && curProject.getProjectId().equals(projectID)) {
+			curProject = null;    
+		}
+		
+	}
 
-		// unselect the current project
+	private void updateProjectDetails() throws Throwable, SQLException {
+		if (Objects.isNull(curProject)) {
+			System.out.println("\nPlease select a project");
+			return;
+		}
+
+		String projectName = getStringInput("Enter the project name [ " + curProject.getProjectName() + " ]");
+		BigDecimal estimatedHours = getDecimalInput(
+				"Enter the estimated hours [ " + curProject.getEstimatedHours() + " ]");
+		BigDecimal actualHours = getDecimalInput("Enter the actual hours [ " + curProject.getActualHours() + " ]");
+		Integer difficulty = getIntInput("Enter the difficulty (1-5) [ " + curProject.getDifficulty() + " ]");
+		String notes = getStringInput("Enter any project notes [ " + curProject.getNotes() + "]");
+
+		Project project = new Project();
+		project.setProjectName(Objects.isNull(projectName) ? curProject.getProjectName() : projectName);
+		project.setEstimatedHours(Objects.isNull(estimatedHours) ? curProject.getEstimatedHours() : estimatedHours);
+		project.setActualHours(Objects.isNull(actualHours) ? curProject.getActualHours() : actualHours);
+		project.setDifficulty(Objects.isNull(difficulty) ? curProject.getDifficulty() : difficulty);
+		project.setNotes(Objects.isNull(notes) ? curProject.getNotes() : notes);
+		project.setProjectId(curProject.getProjectId());
+
+		projectService.modifyProjectDetails(project);
+		curProject = projectService.fetchProjectById(curProject.getProjectId());
+	}
+
+	private void selectProject() {
+		listProjects();
+		int projectId = getIntInput("Enter a project ID to select a project");
 		curProject = null;
-
-		// This will throw an exception if an invalid project ID is entered
 		curProject = projectService.fetchProjectById(projectId);
+
+		if (curProject == null) { // should I remove this?
+			System.out.println("Invalid project ID selected.");
+		}
+
 	}
 
 	private void listProjects() {
+
 		List<Project> projects = projectService.fetchAllProjects();
-
 		System.out.println("\nProjects:");
+		projects.forEach(
+				project -> System.out.println("  " + project.getProjectId() + ": " + project.getProjectName()));
 
-		projects.forEach(project -> System.out.println(" " + project.getProjectId() + ": " + project.getProjectName()));
 	}
 
-	private void createProject() throws SQLException {
+	private void createProject() {
 		String projectName = getStringInput("Enter the project name");
 		BigDecimal estimatedHours = getDecimalInput("Enter the estimated hours");
 		BigDecimal actualHours = getDecimalInput("Enter the actual hours");
-		Integer difficulty = getIntInput("Enter the project difficulty (1-5)");
+		Integer difficulty = getIntInput("Enter the project difficulty (1-5)"); // add input validation here?
 		String notes = getStringInput("Enter the project notes");
 
 		Project project = new Project();
-
 		project.setProjectName(projectName);
 		project.setEstimatedHours(estimatedHours);
 		project.setActualHours(actualHours);
@@ -98,6 +159,7 @@ public class ProjectsApp {
 
 		Project dbProject = projectService.addProject(project);
 		System.out.println("You have successfully created project: " + dbProject);
+
 	}
 
 	private BigDecimal getDecimalInput(String prompt) {
@@ -114,7 +176,7 @@ public class ProjectsApp {
 	}
 
 	private boolean exitMenu() {
-		System.out.println("Exiting the menu.");
+		System.out.println("Exiting menu.");
 		return true;
 	}
 
@@ -122,6 +184,7 @@ public class ProjectsApp {
 		printOperations();
 
 		Integer input = getIntInput("Enter a menu selection");
+
 		return Objects.isNull(input) ? -1 : input;
 	}
 
@@ -131,7 +194,6 @@ public class ProjectsApp {
 		if (Objects.isNull(input)) {
 			return null;
 		}
-
 		try {
 			return Integer.valueOf(input);
 		} catch (NumberFormatException e) {
@@ -146,17 +208,21 @@ public class ProjectsApp {
 		return input.isBlank() ? null : input.trim();
 	}
 
-	// print the menu selections, one per line
 	private void printOperations() {
-		System.out.println("\nThese are the available selections. Press the Enter key to quit:");
+		System.out.println("\nThese are the available selections. Press the Enter key to quit: ");
+		operations.forEach(line -> System.out.println("  " + line));
 
-		// With Lambda expression
-		operations.forEach(line -> System.out.println(" " + line));
-
-		if (Objects.isNull(curProject)) {
+		if (curProject == null) {
 			System.out.println("\nYou are not working with a project.");
 		} else {
 			System.out.println("\nYou are working with project: " + curProject);
 		}
+
 	}
+
+	public void processUserSelection() {
+		// TODO Auto-generated method stub
+		
+	}
+
 }
